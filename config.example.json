@@ -1,0 +1,18 @@
+{
+  "likes_url": "https://www.douyin.com/user/self?showTab=like",
+  "output_dir": "H:\\Movie\\Douyin",
+  "data_dir": "data",
+  "headless": true,
+  "browser_channel": "msedge",
+  "max_scroll_rounds": 300,
+  "scroll_pause_seconds": 1.5,
+  "detail_wait_seconds": 4.0,
+  "page_timeout_seconds": 60,
+  "download_timeout_seconds": 180,
+  "minimum_video_duration_seconds": 3.0,
+  "max_items": 0,
+  "schedule_time": "05:00",
+  "task_name": "DouyinLikedVideosDownloader",
+  "feishu_webhook_url": "",
+  "feishu_webhook_secret": ""
+}

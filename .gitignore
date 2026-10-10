@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+.playwright-ready
+
+# 本地配置、登录态、运行状态和下载内容
+config.json
+data/
+downloads/
+
+# 编辑器文件
+.idea/
+.vscode/
