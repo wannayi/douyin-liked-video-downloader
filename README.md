@@ -1,4 +1,8 @@
-# 抖音点赞视频增量下载器
+# 抖音点赞视频增量下载器 / Douyin Liked Video Incremental Downloader
+
+[中文](#中文) · [English](#english)
+
+## 中文
 
 一个面向 Windows 的个人工具：使用 Playwright 打开抖音点赞列表，增量下载尚未保存的视频，并在每次运行结束后通过飞书机器人发送运行报告。
 
@@ -208,3 +212,187 @@ python -m unittest discover -s tests -v
 | `130` | 用户中断运行 |
 
 请仅下载自己有权保存的内容，并遵守抖音服务条款、版权和隐私要求。高频自动化访问可能触发平台风控，建议保持合理的滚动和下载间隔。
+
+## English
+
+An incremental downloader for liked Douyin videos on Windows. It uses Playwright to open the liked-video list, downloads videos that are not already saved locally, and sends a Feishu rich-text report after each run.
+
+### Features
+
+- Complete login manually once, then reuse the local browser session. Passwords and verification codes are not stored or automated.
+- Scan the logged-in account's visible liked-video list, deduplicate by video ID, and download incrementally.
+- Scroll through dynamically loaded cards and tolerate common page-layout changes.
+- Try alternate media URLs when a candidate is unavailable, too short, returns an HTTP error, or is interrupted by a transient network error.
+- Store successful download state in `data/state.json`; failed videos are retried on the next run.
+- Send a Feishu rich-text report containing newly downloaded, skipped, and failed video details.
+- Run automatically through Windows Task Scheduler.
+
+### Requirements
+
+- Windows 10/11
+- Python 3.10 or newer
+- Microsoft Edge or Playwright Chromium
+- `ffmpeg.exe` on `PATH` when the media URL is HLS (`.m3u8`)
+
+### Installation
+
+Run the following commands from the project directory in PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m playwright install chromium
+Copy-Item config.example.json config.json
+```
+
+The default browser channel is the local Microsoft Edge (`msedge`). If Edge is unavailable, set `browser_channel` to `null` in `config.json` to use Playwright Chromium.
+
+You can also run `一键启动.bat`; it prepares the virtual environment, Playwright, configuration, and the scheduled task automatically.
+
+### First login and manual run
+
+Open a visible browser and save the login session:
+
+```powershell
+python app.py login
+```
+
+Complete the QR-code or web login in the browser. After confirming that account content is visible, return to PowerShell and press Enter once.
+
+Run one manual download:
+
+```powershell
+python app.py run
+```
+
+Videos are saved to `H:\Movie\Douyin` by default. Verify a manual run before installing the scheduled task.
+
+### Feishu notifications
+
+1. Add a custom bot to the target Feishu group.
+2. Copy its Webhook URL into `config.json` as `feishu_webhook_url`.
+3. If signature verification is enabled, put the bot secret in `feishu_webhook_secret`.
+4. Leave `feishu_webhook_secret` empty when signature verification is disabled.
+
+Example:
+
+```json
+{
+  "feishu_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/your-bot-token",
+  "feishu_webhook_secret": "your-signing-secret"
+}
+```
+
+The Webhook URL and signing secret are sensitive configuration. Keep them only in the local `config.json`; do not commit or publish them. Both fields are empty in `config.example.json`.
+
+Each `run` sends a rich-text report with this hierarchy:
+
+```text
+📊 Run overview
+  Completion time, result, discovered/downloaded/skipped/failed counts
+
+📥 Newly downloaded
+  Title, video ID, author, saved path
+
+⏭️ Skipped
+  Title, video ID, saved path
+
+❌ Failed
+  Title, video ID, author, failure reason
+```
+
+Unexpected run failures are also reported. A notification failure is logged but does not roll back or fail the video-download workflow.
+
+### Schedule a daily task
+
+The task name and time come from `task_name` and `schedule_time` in `config.json`:
+
+```powershell
+python app.py install-task
+```
+
+Remove the task with:
+
+```powershell
+python app.py uninstall-task
+```
+
+The task is created for the current Windows user. If it must run while the user is logged out or wake the computer, adjust the task properties in Windows Task Scheduler. The browser login session must still be created under the same user account.
+
+### Configuration
+
+`config.json` is the single source of truth for the local run. `config.example.json` is only a copyable template.
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `likes_url` | `https://www.douyin.com/user/self?showTab=like` | Liked-video list entry point |
+| `output_dir` | `H:\Movie\Douyin` | Video output directory |
+| `data_dir` | `data` | Login state, download state, and logs |
+| `headless` | `true` | Keep enabled for scheduled runs; disable for debugging |
+| `browser_channel` | `msedge` | Local Edge; use `null` for Playwright Chromium |
+| `max_scroll_rounds` | `300` | Maximum list scroll rounds |
+| `scroll_pause_seconds` | `1.5` | Delay after each scroll |
+| `detail_wait_seconds` | `4.0` | Wait for media URLs on a detail page |
+| `page_timeout_seconds` | `60` | Page-operation timeout in seconds |
+| `download_timeout_seconds` | `180` | Per-video or ffmpeg timeout in seconds |
+| `minimum_video_duration_seconds` | `3.0` | Minimum duration used to reject incomplete media |
+| `max_items` | `0` | Maximum items per run; `0` means unlimited |
+| `schedule_time` | `05:00` | Daily Windows task time |
+| `task_name` | `DouyinLikedVideosDownloader` | Windows Task Scheduler name |
+| `feishu_webhook_url` | `""` | Feishu custom-bot Webhook URL; empty disables notifications |
+| `feishu_webhook_secret` | `""` | Feishu signing secret when signature verification is enabled |
+
+### Files and privacy
+
+| Path | Purpose | Commit to Git? |
+| --- | --- | --- |
+| `config.json` | Local configuration, possibly containing the Webhook secret | No |
+| `data/browser-profile` | Browser login session | No |
+| `data/storage_state.json` | Login-state snapshot | No |
+| `data/login.success` | Login marker | No |
+| `data/state.json` | Downloaded state and local paths | No |
+| `data/run.log` | Runtime log | No |
+| `data/startup.log` | Startup error output | No |
+| `downloads/` | Project-local downloads, if used | No |
+| `config.example.json` | Configuration template without secrets | Yes |
+
+These runtime files are excluded by `.gitignore`. Do not share the browser profile, storage state, local configuration, or any file containing the Webhook secret.
+
+### Troubleshooting
+
+**Login expired**
+
+Run `python app.py login` again and complete the login manually. Check `data/startup.log` for startup errors.
+
+**No liked-video links found**
+
+Confirm that the account has visible liked content, then inspect `data/run.log`. If Douyin changed its page structure, verify `likes_url` and repeat the login flow.
+
+**Download failed or the video is only a few seconds long**
+
+The downloader validates media files and tries alternate URLs for short or invalid candidates. For `.m3u8` media, confirm that `ffmpeg` is available on `PATH`. The final failure reason is written to `data/run.log` and included in the Feishu report.
+
+**No Feishu report received**
+
+Check the Webhook URL, the signing secret when enabled, and the notification messages in `data/run.log`. Run `python app.py run` manually to verify network access and bot configuration.
+
+### Development and tests
+
+```powershell
+python -X utf8 -m compileall douyin_likes_downloader
+python -m unittest discover -s tests -v
+```
+
+Tests do not use the real login session and do not send messages to Feishu.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Run completed without download failures |
+| `1` | Download failures or an unhandled runtime exception occurred |
+| `2` | Configuration, browser, or Task Scheduler error |
+| `130` | The user interrupted the run |
+
+Only download content that you are authorized to save, and comply with Douyin's terms of service, copyright, and privacy requirements. High-frequency automation may trigger platform risk controls; use reasonable scroll and download intervals.
